@@ -13,6 +13,17 @@ opencli plugin install github:salomon1184/opencli-plugins-market-data/eastmoney-
 两个命令补的都是**内置版没有的能力**，覆盖是**纯增量**：`--range` 不传时行为与内置逐字一致。
 **不需要板块多日资金的话，不必装它。**
 
+## 覆盖是怎么生效的（机制）
+
+opencli 的适配器加载顺序是 **内置 → 用户级（`~/.opencli/clis/`）→ 插件**，
+注册表以 `site/name` 为键直接覆盖 —— 所以同名命令后加载的**整体替换**先加载的。
+
+插件排最后，所以本插件的 `eastmoney/sectors`、`eastmoney/sector-quote`
+会盖掉内置的同名命令。opencli 自带 `adapter-shadow.js` 会提示这种覆盖，
+说明这是**被支持的用法**，不是 hack。
+
+`opencli adapter status` 可以看到哪些站点有本地覆盖。
+
 ## 命令
 
 | 命令 | 补的是什么 |
