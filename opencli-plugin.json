@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "opencli": ">=1.8.7",
+  "description": "行情数据适配器：腾讯（A股/港股/美股）+ 东方财富板块扩展",
+  "plugins": {
+    "tencent-data": {
+      "path": "packages/tencent-data",
+      "version": "0.1.0",
+      "description": "腾讯行情：日/周/月 K 线（复权可选）、实时快照、当日分时 —— A股 / 港股 / 美股"
+    },
+    "eastmoney-ext": {
+      "path": "packages/eastmoney-ext",
+      "version": "0.1.0",
+      "description": "东方财富板块扩展：板块级 5/10 日主力净额（--range）+ 按 BK 代码直取快照"
+    }
+  }
+}
