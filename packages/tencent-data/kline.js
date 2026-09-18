@@ -22,6 +22,7 @@
 //   opencli tencent kline sh512480
 //   opencli tencent kline 512480 --period week --count 200 -f json
 //   opencli tencent kline sh000001 --period day --adjust none
+//   opencli tencent kline hk00700 --start 2024-01-02 --end 2024-01-10   # 日期区间
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
@@ -46,7 +47,9 @@ cli({
     { name: 'symbol', required: true, positional: true, help: '代码，如 sh512480 / 512480（A股 6 位可省前缀；000xxx 有歧义必须显式给）' },
     { name: 'period', type: 'string', default: 'day',   help: `周期：${PERIODS.join(' / ')}` },
     { name: 'adjust', type: 'string', default: 'qfq',   help: `复权：${ADJUSTS.join(' / ')}（none = 不复权）` },
-    { name: 'count',  type: 'int',    default: 250,     help: '返回根数（实测 800 可用）' },
+    { name: 'count',  type: 'int',    default: 250,     help: '返回根数（实测 800 可用；给了 --start/--end 时它们优先）' },
+    { name: 'start',  type: 'string', default: '',      help: '起始日 YYYY-MM-DD（**必须与 --end 同时给**，只给一个会被上游忽略）' },
+    { name: 'end',    type: 'string', default: '',      help: '结束日 YYYY-MM-DD' },
     { name: 'market', type: 'string', default: '',      help: '强制市场前缀 sh/sz/hk/us —— 仅 000xxx 这类歧义代码需要' },
   ],
   columns: ['date', 'open', 'close', 'high', 'low', 'vol'],
@@ -68,7 +71,11 @@ cli({
 
     const count = Math.max(1, Number(args.count) || 250);
     const fq = adjust === 'none' ? '' : adjust;
-    const url = `${BASE}?param=${symbol},${period},,,${count},${fq}`;
+    // 上游形态是 `param=<sym>,<period>,<start>,<end>,<count>,<fq>`。
+    // ⚠️ **start/end 必须成对给** —— 实测只给 start 会被忽略、回退到 count 模式。
+    const start = String(args.start || '').trim();
+    const end = String(args.end || '').trim();
+    const url = `${BASE}?param=${symbol},${period},${start},${end},${count},${fq}`;
 
     const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!resp.ok) throw new CliError('HTTP_ERROR', `tencent kline failed: HTTP ${resp.status}`);
