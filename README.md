@@ -59,7 +59,11 @@ opencli eastmoney sector-quote BK1158 -f json
 
 - **分钟 K 线不可得** —— 腾讯 `…/appstock/app/kline/mkline` 明文 HTTP 四种周期全 `SSL EOF`。
   `minute` 命令给的是**当日分时**，不是历史分钟 K。
-- **港股无前复权** —— 拆股要调用方自己处理。
+- **港股无前复权** —— 该端点对港股只返回不复权价（键是 `day`，不是 `qfqday`）。
+  上游不给复权，所以**拆股要自己修**：维护一张 `(生效日, 比例)` 表，在回测/画图前手工折算。
+  参考实现：`auto-quant` 工作区的 `research/hstech-strategy/tencent_fetch.py`
+  （它的 `REVERSE_SPLITS` 就是干这个的 —— 例如某 2 倍做多恒科 ETF 在 2022-07-27 反向 5:1）。
+  **注意**：那张表是**逐标的的既成事实**，不是通用规则 —— 适配器不该内置它。
 - **东方财富 `clist` 端点不稳** —— `sectors` 走的那个端点历史上多次整条不可达
   （`fetch failed` / `Other side closed`）。这不是本插件的问题；调用方应实现退避重试，
   并在失败时如实记缺位。**不要**拿别的口径顶替。
