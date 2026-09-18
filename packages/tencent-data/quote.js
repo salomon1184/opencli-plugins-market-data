@@ -14,7 +14,13 @@
 // 字段位置（**实测核对过**，用 512480 的已知开/收/高/低/昨收对出来的）：
 //   [1] 名称   [2] 代码   [3] 现价   [4] 昨收   [5] 今开   [6] 成交量(手)
 //   [30] 时间戳(YYYYMMDDHHMMSS)  [31] 涨跌额  [32] 涨跌%  [33] 最高  [34] 最低
-//   [37] 成交额(万)  [38] 换手率%  [43] 振幅%  [44] 流通市值(亿)  [45] 总市值(亿)
+//   [36] 成交量(股，与 [6] 同值)  [37] 成交额（⚠️ **单位随市场变**）  [38] 换手率%
+//   [39] 市盈率  [43] 振幅%  [44] 流通市值(亿)  [45] 总市值(亿)
+//
+// ⚠️ **[37] 成交额的单位不是固定的**（2026-09-19 实测）：
+//     A股 `sh512480` → 154977（**万元**）；港股 `hk00700` → 12180786280（**元**，≈121.8 亿）。
+//     所以本适配器**不替调用方归一**（归一就得猜），字段名也只叫 `amount`、
+//     **不叫 `amountWan`** —— 曾用名会让人在港股上少算四个数量级。
 //   共 88 个字段。**只映射核对过的那几个** —— 没核对的宁可不出，免得给个看着像的错数。
 //
 //   opencli tencent quote sh512480
@@ -47,7 +53,7 @@ cli({
   columns: [
     'symbol', 'name', 'price', 'prevClose', 'open',
     'change', 'changePercent', 'high', 'low',
-    'volume', 'amountWan', 'turnoverRate', 'amplitude',
+    'volume', 'amount', 'turnoverRate', 'amplitude', 'pe',
     'floatCapYi', 'totalCapYi', 'time',
   ],
   func: async (args) => {
@@ -91,8 +97,9 @@ cli({
         high: num(f[33]),
         low: num(f[34]),
         volume: num(f[6]),
-        amountWan: num(f[37]),
+        amount: num(f[37]),   // ⚠️ 单位随市场变，见文件头
         turnoverRate: num(f[38]),
+        pe: num(f[39]),
         amplitude: num(f[43]),
         floatCapYi: num(f[44]),
         totalCapYi: num(f[45]),
