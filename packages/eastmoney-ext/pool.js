@@ -26,11 +26,14 @@
 //   opencli eastmoney pool --type zb --date 2026-09-04 --limit 50   # 有意取前 50（会告警）
 //   opencli eastmoney pool --type dt --date 2026-09-18   # 空池返回 []，不是错误
 //
-// ⚠️ **`--limit` 省略 = 取全部**（不是"默认 50"）。上游 `data.tc` 才是真实家数，
+// ⚠️ **`--limit` 省略 = 尽量取全**（不是"默认 50"）。一次请求的 `pagesize` 开到 **500**
+//   —— 那是**上限、不是承诺**：池子若超过 500 家（崩盘日的跌停池是有过的），
+//   不会少给，而是**报错**（`TRUNCATED`）。上游 `data.tc` 才是真实家数，
 //   `pagesize` 只是分页大小 —— 两者不等时，拿返回条数当家数会**静默少数**
 //   （09-18 实际 78 家，旧的默认 50 会安安静静报成 50）。所以：
 //     · 省略 `--limit` → 开 500 取全；若仍被截断（tc > 返回条数）→ **报错**，不静默少给。
 //     · 显式给了 `--limit` → 视为有意截断，**只告警不改结果**（stderr）。
+//   报错用 `TRUNCATED` 而非 `NO_DATA`：后者是「当天没有」，语义正好相反。
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
@@ -129,7 +132,10 @@ cli({
     const truncated = truncationCheck(num(data.tc), rows.length, { explicitLimit, limit });
     if (truncated) {
       const where = `${pool.label}池 date=${date}：${truncated.detail}`;
-      if (truncated.level === 'error') throw new CliError('NO_DATA', where);
+      // ⚠️ 这里**不用 `NO_DATA`**。两者都会被调用方按 `code` 分支，而语义正好相反：
+      //    `NO_DATA` = 「当天没有」，`TRUNCATED` = 「有，但没给全」。
+      //    报成 NO_DATA 会让调用方如实记下「9-18 没有涨停」—— 而实际是 78 家被扣住了。
+      if (truncated.level === 'error') throw new CliError('TRUNCATED', where);
       console.error(`[pool] ⚠️ ${where}`);
     }
     return rows;
