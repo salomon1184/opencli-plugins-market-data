@@ -2,17 +2,18 @@
 
 行情数据适配器集合 —— [opencli](https://github.com/jackwener/opencli) 插件（monorepo）。
 
-两个子插件，**可分别安装**。全部走**明文 HTTP**：不需要 cookie、不需要浏览器扩展。
+三个子插件，**可分别安装**。行情类全部走**明文 HTTP**：不需要 cookie、不需要浏览器扩展。
 
-| 子插件 | 站点 | 覆盖市场 | 性质 |
+| 子插件 | 站点 | 覆盖 | 性质 |
 |---|---|---|---|
 | [`tencent-data`](packages/tencent-data) | `tencent` | **A股 · 港股 · 美股** | 新增站点 |
 | [`eastmoney-ext`](packages/eastmoney-ext) | `eastmoney` | A股 | ⚠️ **覆盖内置站点** |
+| [`fmp-data`](packages/fmp-data) | `fmp` | 美股（基本面/日线） | 新增站点 · **需自己的 API key** |
 
 ## 安装
 
 ```bash
-# 两个都装
+# 三个都装
 opencli plugin install github:salomon1184/opencli-plugins-market-data
 
 # 只装腾讯（想要港股/美股 K 线、但不想动内置 eastmoney 的，装这个）
@@ -20,6 +21,9 @@ opencli plugin install github:salomon1184/opencli-plugins-market-data/tencent-da
 
 # 只装东财扩展
 opencli plugin install github:salomon1184/opencli-plugins-market-data/eastmoney-ext
+
+# 只装 FMP（美股公司档案/利润表/日线；需要自己的 FMP API key）
+opencli plugin install github:salomon1184/opencli-plugins-market-data/fmp-data
 ```
 
 ## 命令
@@ -38,6 +42,17 @@ opencli tencent minute sh512480 -f json                           # 当日分时
 opencli eastmoney sectors --type industry --sort money-flow --range 5d --limit 12 -f json
 opencli eastmoney sector-quote BK1158 -f json
 opencli eastmoney pool --type zt --date 2026-09-18 -f json    # 涨停池（另有 dt/zb/qs/cx）
+```
+
+### `fmp-data`
+
+⚠️ **需要自己的 API key**（`--apikey` / 环境变量 / 配置文件，见[子包 README](packages/fmp-data)）。
+免费档**按 symbol 分档** —— 大盘股常通、小盘常 402，且**端点之间行为不一致**，别互相套用。
+
+```bash
+opencli fmp profile AAPL -f json                          # 公司档案
+opencli fmp income AAPL --period annual --limit 5 -f json # 利润表
+opencli fmp eod AAPL --last 250 -f json                   # 日线（默认全历史）
 ```
 
 ## 市场覆盖与代码写法
@@ -93,6 +108,10 @@ opencli eastmoney pool --type zt --date 2026-09-18 -f json    # 涨停池（另�
 - 重试请用调用方自己的退避包装。本项目的参考实现是
   `fetch_retry.py`：1s→2s→4s，退避封顶，且把**「真空数据」与「请求失败」分开处置**
   （前者不重试 —— 重试修不了"答复说没有"，只会白耗请求额度、加剧被限流）。
+
+⚠️ **`fmp-data` 的机制不一样**，别把上面那套套过去：FMP 是商业 API，限流按**套餐**算
+（超了回 **429**），不存在"按源 IP 封禁"这回事，也就没有"换个 host 绕过去"的余地。
+节奏同样归调用方（免费档建议每只间隔 5~7s）—— 见[子包 README](packages/fmp-data)。
 
 ### 东财的封禁：症状与「上游宕机」无法区分
 
