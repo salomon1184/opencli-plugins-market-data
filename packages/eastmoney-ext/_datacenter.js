@@ -11,6 +11,21 @@
 // （同一个教训在 `pool` 上是 `tc`，见该命令文件头。）
 
 /**
+ * 「没有值」→ null，**绝不变成 0**。
+ *
+ * ⚠️ 必须显式拦 `null` / `undefined` / 空串：`Number(null)` 是 0、`Number('')` 也是 0，
+ *    两者都**有限**，只靠 `Number.isFinite` 会把"上游没给"读成"上游说是 0"。
+ *    本仓已经在这上面栽过两次（`_pool.js` 的 `num`、`quote.js` 的 `num`），
+ *    这里是第三次 —— 所以抽成有名字的函数配上测试，而不是继续裸写 `Number()`。
+ */
+export const numOrNull = (v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
  * 拆 datacenter 的应答信封。
  *
  * 实测形状（2026-09-19）：
@@ -37,8 +52,11 @@ export function parseDatacenter(obj) {
     ok: true,
     rows,
     // count/pages 可能缺失 —— 缺失给 null，**不拿 0 冒充**（0 会被读成"上游说没有"）。
-    count: Number.isFinite(Number(r.count)) ? Number(r.count) : null,
-    pages: Number.isFinite(Number(r.pages)) ? Number(r.pages) : null,
+    // ⚠️ 走 numOrNull 而不是裸 `Number.isFinite(Number(x))`：后者对**显式的 null**
+    //    会给出 0（`Number(null)` 是 0 且有限），于是 count=0 会让分页循环第一页就
+    //    `break`（`rows.length >= 0` 恒真），再报出"上游说共 0 条"这种上游没说过的话。
+    count: numOrNull(r.count),
+    pages: numOrNull(r.pages),
   };
 }
 
@@ -56,13 +74,10 @@ export function parseDatacenter(obj) {
 export function completenessCheck(fetched, count) {
   if (count === null || count === undefined || !Number.isFinite(count)) return null;
   if (fetched === count) return null;
-  return {
-    level: 'error',
-    detail: `上游说共 ${count} 条，实际只取回 ${fetched} 条`,
-  };
-}
-
-/** 一页取完、但条数少于 pageSize 时，**不能**就此断定到底了 —— 见文件头。 */
-export function looksLikeLastPage(rowsLength, pageSize) {
-  return rowsLength > 0 && rowsLength < pageSize;
+  // ⚠️ 两个方向分开措辞。取少了是"漏"，取多了是"分页/口径理解有误" ——
+  //    都不该发生，但用一个"只取回 N 条"去描述超额，读起来是反的。
+  const detail = fetched < count
+    ? `上游说共 ${count} 条，只取回 ${fetched} 条`
+    : `上游说共 ${count} 条，却取回 ${fetched} 条（多出来了 —— 分页或口径理解有误）`;
+  return { level: 'error', detail };
 }

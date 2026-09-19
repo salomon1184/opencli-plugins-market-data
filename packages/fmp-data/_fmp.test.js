@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 import {
   num, classifyHttp, errorMessageOf, profileRow, incomeRow, eodRow,
-  resolveKey, parseRange, configPathFromEnv,
+  resolveKey, configPathFromEnv,
 } from './_fmp.js';
 
 // ---- 实测：/profile?symbol=AAPL（截取用到的字段）----
@@ -131,9 +131,4 @@ test('configPathFromEnv: 没设 / 空串 → null（跳过这一步，不是变�
   assert.equal(configPathFromEnv(), null);
 });
 
-test('parseRange: 切 "lo-hi"，切不出给 null', () => {
-  assert.deepEqual(parseRange('169.21-260.10'), { lo: 169.21, hi: 260.1 });
-  assert.equal(parseRange(''), null);
-  assert.equal(parseRange(null), null);
-  assert.equal(parseRange('nope'), null);
-});
+// 注：原先这里测的 `parseRange` 已删（导出着但三个命令都没用 —— 见 _fmp.js 的注）。

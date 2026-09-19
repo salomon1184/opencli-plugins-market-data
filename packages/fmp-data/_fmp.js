@@ -182,12 +182,7 @@ export function resolveKey({ apikey = null, env = {}, configPath = null, readFil
   return { key: null, from: null };
 }
 
-/** 把一个 `range` 字符串（"12.34-56.78"）切成 {lo, hi}；切不出就 null。 */
-export function parseRange(range) {
-  if (typeof range !== 'string') return null;
-  const [a, b] = range.split('-');
-  const lo = num(a);
-  const hi = num(b);
-  if (lo === null || hi === null) return null;
-  return { lo, hi };
-}
+// 注：这里原先有个 `parseRange`（把 profile 的 `"240.21-344.57"` 切成 {lo,hi}），
+// 但三个命令**没有一个用它** —— 导出着、测着、没人调。有测试覆盖反而会给人
+// 「这块测过了」的错觉，所以删掉。真要用（比如让 profile 顺便出 low52/high52）
+// 再从 git 历史里取回来。

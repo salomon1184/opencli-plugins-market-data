@@ -50,21 +50,6 @@ const DEFAULT_MAX_PAGES = 50;
 
 const sleep = (sec) => new Promise((r) => setTimeout(r, sec * 1000));
 
-/**
- * 读一个**带横线**的参数。
- *
- * ⚠️ opencli 是 `--${arg.name}` 原样拼标志的，所以 `page-delay` 这个参数在
- *    `args` 里的键就是 **`'page-delay'`**，不是 `page_delay` 也不是 `pageDelay`。
- *    实测踩过：写成 `args.page_delay` 会拿到 `undefined` → `|| 0` → **标志被静默忽略**
- *    （`--page-delay 3` 跑出来 0 秒停顿，而结果看起来完全正常）。
- *    camelCase 也试一下，防止中间层改名。
- */
-const argOf = (args, kebab) => {
-  const v = args[kebab];
-  if (v !== undefined && v !== null && v !== '') return v;
-  return args[kebab.replace(/-([a-z])/g, (_m, c) => c.toUpperCase())];
-};
-
 cli({
   site: 'eastmoney',
   name: 'hk-f10',
@@ -74,6 +59,13 @@ cli({
   strategy: Strategy.PUBLIC,
   browser: false,
   example: "opencli eastmoney hk-f10 --date 2025-12-31 -f json",
+  // ⚠️ 下面这些**带横线**的参数，在 `args` 里的键就是**原样的横线形式**
+  //    （`args['page-delay']`）—— 不是 `page_delay` 也不是 `pageDelay`。
+  //    实测踩过：写成 `args.page_delay` 会拿到 `undefined` → `|| 0` → **标志被静默忽略**
+  //    （`--page-delay 3` 跑出 0 秒停顿，而结果看起来完全正常）。
+  //    框架**不会**改名：`commanderAdapter.js` 写的是 `rawKwargs[arg.name]`（原样），
+  //    中间那层 `prepareCommandArgs` 只是 `{...kwargs}` 拷贝 —— 所以不必也不该再试
+  //    camelCase（同 `pool.js` 的 `--with-meta`）。
   args: [
     { name: 'date', type: 'string', required: true, help: "报告期 REPORT_DATE，YYYY-MM-DD（如 2025-12-31 年报 / 2026-06-30 中报）" },
     { name: 'page-size', type: 'int', default: DEFAULT_PAGE_SIZE, help: `每页条数（实测上限 ${DEFAULT_PAGE_SIZE}）` },
@@ -87,9 +79,9 @@ cli({
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new CliError('INVALID_ARGUMENT', `--date 要 YYYY-MM-DD，收到 "${date}"`);
     }
-    const pageSize = Math.max(1, Number(argOf(args, 'page-size')) || DEFAULT_PAGE_SIZE);
-    const maxPages = Math.max(1, Number(argOf(args, 'max-pages')) || DEFAULT_MAX_PAGES);
-    const delay = Math.max(0, Number(argOf(args, 'page-delay')) || 0);
+    const pageSize = Math.max(1, Number(args['page-size']) || DEFAULT_PAGE_SIZE);
+    const maxPages = Math.max(1, Number(args['max-pages']) || DEFAULT_MAX_PAGES);
+    const delay = Math.max(0, Number(args['page-delay']) || 0);
     const columns = String(args.columns ?? '').trim() || DEFAULT_COLUMNS;
 
     const rows = [];
@@ -137,6 +129,6 @@ cli({
       );
     }
 
-    return argOf(args, 'with-meta') ? { count, pages, rows } : rows;
+    return args['with-meta'] ? { count, pages, rows } : rows;
   },
 });

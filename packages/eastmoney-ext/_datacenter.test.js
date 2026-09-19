@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseDatacenter, completenessCheck, looksLikeLastPage } from './_datacenter.js';
+import { parseDatacenter, completenessCheck, numOrNull } from './_datacenter.js';
 
 // ---- 实测：RPT_HKF10_FN_MAININDICATOR, REPORT_DATE='2025-12-31', pageSize=3 ----
 const OK_ENVELOPE = {
@@ -57,6 +57,20 @@ test('parseDatacenter: count 缺失给 null，**不拿 0 冒充**', () => {
   assert.equal(r.pages, null);
 });
 
+test('parseDatacenter: count 是**显式 null** 也要给 null —— 不能变 0', () => {
+  // ⚠️ 这条钉的是一个真踩过的 bug：`Number(null)` 是 0 且有限，裸写
+  //    `Number.isFinite(Number(x))` 会把"上游没给"读成"上游说是 0"。
+  //    后果不是静默：count=0 让分页循环第一页就 break（`rows.length >= 0` 恒真），
+  //    然后报出"上游说共 0 条，只取回 500 条"—— 而上游从没说过 0。
+  const r = parseDatacenter({ success: true, result: { pages: null, count: null, data: [{ a: 1 }] } });
+  assert.equal(r.count, null);
+  assert.equal(r.pages, null);
+  // 空串同理（`Number('')` 也是 0）
+  const r2 = parseDatacenter({ success: true, result: { count: '', pages: '  ', data: [] } });
+  assert.equal(r2.count, null);
+  assert.equal(r2.pages, null);
+});
+
 test('parseDatacenter: data 不是数组时当空页，不当错误', () => {
   // 「这页没有」是合法答复（翻到底、或被限流）—— 到底是哪一种由 count 对账来分
   const r = parseDatacenter({ success: true, result: { count: 2246, data: null } });
@@ -75,11 +89,17 @@ test('completenessCheck: 少于 count → error（这就是静默截断）', () 
   // 被限流返回空页时，手写脚本会当成"翻到底" —— 拿 count 一对就露馅
   const r = completenessCheck(1200, 2246);
   assert.equal(r.level, 'error');
-  assert.match(r.detail, /共 2246 条，实际只取回 1200 条/);
+  assert.match(r.detail, /共 2246 条，只取回 1200 条/);
 });
 
 test('completenessCheck: 多于 count 也 error（对不上就是理解错了分页）', () => {
   assert.equal(completenessCheck(2300, 2246).level, 'error');
+});
+
+test('completenessCheck: 两个方向的措辞要分开 —— 取多了不能说"只取回"', () => {
+  assert.match(completenessCheck(1200, 2246).detail, /只取回 1200 条/);
+  assert.match(completenessCheck(2300, 2246).detail, /却取回 2300 条/);
+  assert.doesNotMatch(completenessCheck(2300, 2246).detail, /只取回/);
 });
 
 test('completenessCheck: count 拿不到 → null（不判定，但也不假装核对过）', () => {
@@ -92,9 +112,21 @@ test('completenessCheck: 真空（上游说 0、也取回 0）是合法结果', 
   assert.equal(completenessCheck(0, 0), null);
 });
 
-test('looksLikeLastPage: 条数少于页大小才算"可能到底"；空页不算', () => {
-  assert.equal(looksLikeLastPage(3, 500), true);
-  assert.equal(looksLikeLastPage(500, 500), false);
-  // ⚠️ 空页返回 false —— 它可能是限流，不能凭它就断定到底了
-  assert.equal(looksLikeLastPage(0, 500), false);
+test('numOrNull: 「没有值」一律 null —— 这是本仓栽过三次的那个坑', () => {
+  // `Number(null)` 是 0、`Number('')` 也是 0，两者都有限 —— 只靠 Number.isFinite
+  // 会把"上游没给"读成"上游说是 0"。
+  assert.equal(numOrNull(null), null);
+  assert.equal(numOrNull(undefined), null);
+  assert.equal(numOrNull(''), null);
+  assert.equal(numOrNull('   '), null);
+  assert.equal(numOrNull('abc'), null);
+  assert.equal(numOrNull(NaN), null);
+  assert.equal(numOrNull(Infinity), null);
+});
+
+test('numOrNull: 真的 0 要留成 0（别把"确实是 0"也吞掉）', () => {
+  assert.equal(numOrNull(0), 0);
+  assert.equal(numOrNull('0'), 0);
+  assert.equal(numOrNull(2246), 2246);
+  assert.equal(numOrNull('2246'), 2246);
 });
