@@ -48,7 +48,7 @@ cli({
     //    让它冒出去，别在这里 catch 成一个笼统的"财报不可用"。
     const rows = await fmpGet('/income-statement', {
       symbol, period, limit: Math.max(1, Number(args.limit) || 5),
-    }, key);
+    }, key, symbol);
     if (rows.length === 0) {
       throw new CliError('NOT_FOUND', `${symbol} 没返回任何期数 —— 符号可能拼错（上游对不存在的符号回 200+空数组）`);
     }

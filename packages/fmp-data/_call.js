@@ -48,7 +48,7 @@ export function requireKey(apikey) {
  *    所以这里**原样返回空数组**，由调用方按语义决定怎么处置：
  *    单符号命令把它当 NOT_FOUND 报出来，多符号命令拿它做逐符号核对。
  */
-export async function fmpGet(endpoint, params, key) {
+export async function fmpGet(endpoint, params, key, label = null) {
   const url = new URL(BASE + endpoint);
   for (const [k, v] of Object.entries(params)) {
     if (v === null || v === undefined || v === '') continue;
@@ -56,16 +56,20 @@ export async function fmpGet(endpoint, params, key) {
   }
   url.searchParams.set('apikey', key);
 
+  // ⚠️ 错误文案一律带上是**哪个符号**。402 是 symbol 级的（见 _fmp.js 文件头），
+  //    不点名就会得出"该端点要付费"这种过宽的结论 —— 而同端点大盘股本来就通。
+  const where = label ? `[${label}] ` : '';
+
   let resp;
   try {
     resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
   } catch (e) {
-    throw new CliError('HTTP_ERROR', `FMP 请求失败（网络层）：${String(e).slice(0, 200)}`);
+    throw new CliError('HTTP_ERROR', `${where}FMP 请求失败（网络层）：${String(e).slice(0, 200)}`);
   }
 
   const text = await resp.text();
   const bad = classifyHttp(resp.status, text);
-  if (bad) throw new CliError(bad.code, bad.message);
+  if (bad) throw new CliError(bad.code, where + bad.message);
 
   let obj;
   try {

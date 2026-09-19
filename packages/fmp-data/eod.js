@@ -48,7 +48,7 @@ cli({
       serietype: 'line',
       from: args.from ?? null,
       to: args.to ?? null,
-    }, key);
+    }, key, symbol);
     if (rows.length === 0) {
       throw new CliError('NOT_FOUND', `${symbol} 没返回任何日线 —— 符号可能拼错（上游对不存在的符号回 200+空数组）`);
     }

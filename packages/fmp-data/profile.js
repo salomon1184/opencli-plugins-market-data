@@ -58,7 +58,7 @@ cli({
     const missing = [];   // ⚠️ 收集而不是撞见就抛 —— 多符号时一次报全，才好处置
     for (let i = 0; i < symbols.length; i += 1) {
       if (i > 0 && delay > 0) await sleep(delay);
-      const rows = await fmpGet('/profile', { symbol: symbols[i] }, key);
+      const rows = await fmpGet('/profile', { symbol: symbols[i] }, key, symbols[i]);
       if (rows.length !== 1) {
         // 0 条 = 该符号不存在 / 本套餐不覆盖（两者上游同形，区分不了，如实说）
         missing.push({ symbol: symbols[i], got: rows.length });
