@@ -50,6 +50,21 @@ const DEFAULT_MAX_PAGES = 50;
 
 const sleep = (sec) => new Promise((r) => setTimeout(r, sec * 1000));
 
+/**
+ * 读一个**带横线**的参数。
+ *
+ * ⚠️ opencli 是 `--${arg.name}` 原样拼标志的，所以 `page-delay` 这个参数在
+ *    `args` 里的键就是 **`'page-delay'`**，不是 `page_delay` 也不是 `pageDelay`。
+ *    实测踩过：写成 `args.page_delay` 会拿到 `undefined` → `|| 0` → **标志被静默忽略**
+ *    （`--page-delay 3` 跑出来 0 秒停顿，而结果看起来完全正常）。
+ *    camelCase 也试一下，防止中间层改名。
+ */
+const argOf = (args, kebab) => {
+  const v = args[kebab];
+  if (v !== undefined && v !== null && v !== '') return v;
+  return args[kebab.replace(/-([a-z])/g, (_m, c) => c.toUpperCase())];
+};
+
 cli({
   site: 'eastmoney',
   name: 'hk-f10',
@@ -72,9 +87,9 @@ cli({
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new CliError('INVALID_ARGUMENT', `--date 要 YYYY-MM-DD，收到 "${date}"`);
     }
-    const pageSize = Math.max(1, Number(args.page_size) || DEFAULT_PAGE_SIZE);
-    const maxPages = Math.max(1, Number(args.max_pages) || DEFAULT_MAX_PAGES);
-    const delay = Math.max(0, Number(args.page_delay) || 0);
+    const pageSize = Math.max(1, Number(argOf(args, 'page-size')) || DEFAULT_PAGE_SIZE);
+    const maxPages = Math.max(1, Number(argOf(args, 'max-pages')) || DEFAULT_MAX_PAGES);
+    const delay = Math.max(0, Number(argOf(args, 'page-delay')) || 0);
     const columns = String(args.columns ?? '').trim() || DEFAULT_COLUMNS;
 
     const rows = [];
@@ -122,6 +137,6 @@ cli({
       );
     }
 
-    return args['with-meta'] ? { count, pages, rows } : rows;
+    return argOf(args, 'with-meta') ? { count, pages, rows } : rows;
   },
 });
