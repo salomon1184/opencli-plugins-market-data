@@ -63,7 +63,9 @@ cli({
     //    给了默认值就分不清这两者 —— 而它们的处置相反（一个该报错，一个只该提醒）。
     { name: 'limit', type: 'int',    help: '返回数量（省略 = 取全部；显式给 = 有意截断并告警）' },
     // opt-in：默认仍是**数组**（表格/CSV 渲染靠它），要聚合字段才加这个。
-    { name: 'withMeta', type: 'boolean', default: false,
+    // ⚠️ 名字**必须带横线** —— opencli 是 `--${arg.name}` 原样拼标志的，
+    //    `withMeta` 会变成 `--withMeta`，与 CLI 其它 kebab 标志不一致。
+    { name: 'with-meta', type: 'boolean', default: false,
       help: '返回 {tc, qdate, pool:[…]} 而不是裸数组 —— 让调用方拿到**真实家数**，不必用 len() 反推' },
   ],
   columns: [
@@ -144,6 +146,9 @@ cli({
     // opt-in：把上游的**聚合字段**一并交出去（默认仍返回裸数组，表格渲染靠它）。
     // 有了 `tc`，调用方就不必用 `len(rows)` 反推家数 —— 那个反推只在
     // 「要么取全、要么报错」下成立，是个需要靠纪律维持的前提；直接给真值就没有前提了。
-    return args.withMeta ? withMeta(data, rows) : rows;
+    // ⚠️ 两个键都试：框架把 kwargs 按 `arg.name`（带横线）放，但中间会过一层
+    //    `prepareCommandArgs`，不好假定它一定不改名 —— 取到就算。
+    const meta = args['with-meta'] ?? args.withMeta;
+    return meta ? withMeta(data, rows) : rows;
   },
 });
