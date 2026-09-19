@@ -132,3 +132,24 @@ export function truncationCheck(tc, returned, { explicitLimit = false, limit = n
     ? { level: 'warn',  detail: `${detail}（--limit ${limit} 系有意截断）` }
     : { level: 'error', detail: `${detail} —— 默认本应取全，请提高 --limit` };
 }
+
+/**
+ * `--with-meta` 的信封 —— 把上游的**聚合字段**一并交出去，而不是拿到就丢掉。
+ *
+ * 为什么值得给：调用方要「涨停家数」时，拿不到 `tc` 就只能 `len(rows)` 反推 ——
+ * 而那个反推**只在「要么取全、要么报错」下成立**，是个要靠纪律维持的前提
+ * （一旦有人加了 `--limit`，静默少数立刻回来）。直接给真值，前提就不需要了。
+ *
+ * ⚠️ **默认不返回这个**：默认仍是裸数组 —— 表格/CSV 渲染认数组，对象会被
+ * 当成"一行"（见 opencli 的 `normalizeRows`）。要聚合字段才加 `--with-meta`。
+ *
+ * ⚠️ **`qdate` 不是请求日**：实测传 `date=20260904`，`qdate` 仍回 `20260918`
+ * （恒等于「最新交易日」）。**别拿它校验日期**，否则会误杀所有历史查询。
+ */
+export function withMeta(data, rows) {
+  return {
+    tc: num(data?.tc),        // 真实家数，不受 pagesize 影响
+    qdate: num(data?.qdate),  // ⚠️ 「最新交易日」标注，**不是**请求日
+    pool: rows,
+  };
+}

@@ -37,7 +37,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { POOLS, mapPoolRow, toCompactDate, num, truncationCheck } from './_pool.js';
+import { POOLS, mapPoolRow, toCompactDate, num, truncationCheck, withMeta } from './_pool.js';
 
 const BASE = 'https://push2ex.eastmoney.com/getTopic';
 const UT = '7eea3edcaed734bea9cbfc24409ed989';   // ⚠️ 见文件头：这个 host 专用的 token
@@ -62,6 +62,9 @@ cli({
     // ⚠️ **刻意不给默认值**：省略 = 取全部，显式给 = 有意截断。
     //    给了默认值就分不清这两者 —— 而它们的处置相反（一个该报错，一个只该提醒）。
     { name: 'limit', type: 'int',    help: '返回数量（省略 = 取全部；显式给 = 有意截断并告警）' },
+    // opt-in：默认仍是**数组**（表格/CSV 渲染靠它），要聚合字段才加这个。
+    { name: 'withMeta', type: 'boolean', default: false,
+      help: '返回 {tc, qdate, pool:[…]} 而不是裸数组 —— 让调用方拿到**真实家数**，不必用 len() 反推' },
   ],
   columns: [
     'rank', 'code', 'name', 'price', 'changePercent',
@@ -138,6 +141,9 @@ cli({
       if (truncated.level === 'error') throw new CliError('TRUNCATED', where);
       console.error(`[pool] ⚠️ ${where}`);
     }
-    return rows;
+    // opt-in：把上游的**聚合字段**一并交出去（默认仍返回裸数组，表格渲染靠它）。
+    // 有了 `tc`，调用方就不必用 `len(rows)` 反推家数 —— 那个反推只在
+    // 「要么取全、要么报错」下成立，是个需要靠纪律维持的前提；直接给真值就没有前提了。
+    return args.withMeta ? withMeta(data, rows) : rows;
   },
 });

@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import {
   POOLS, PRICE_SENTINEL, num, price, hhmmss, toCompactDate, mapPoolRow, truncationCheck,
+  withMeta,
 } from './_pool.js';
 
 // ---- 真实记录（涨停池 2026-09-18，百通能源 001376）----
@@ -187,4 +188,35 @@ test('truncationCheck: tc 取不到时不判定 —— 别把字段缺失升级�
 
 test('truncationCheck: 空池（tc 0，取回 0）是合法结果，不是截断', () => {
   assert.equal(truncationCheck(0, 0, { explicitLimit: false, limit: 500 }), null);
+});
+
+// ---- withMeta（--with-meta 的信封）----
+
+test('withMeta: tc / qdate 取上游原值，rows 原样带出', () => {
+  const rows = [mapPoolRow(ZT_ROW, 0)];
+  const e = withMeta({ tc: 78, qdate: 20260918, pool: [] }, rows);
+  assert.equal(e.tc, 78);              // 真实家数，**不是** rows.length
+  assert.equal(e.qdate, 20260918);
+  assert.deepEqual(e.pool, rows);
+});
+
+test('withMeta: tc 与 rows.length 可以不等 —— 差额正是截断信号', () => {
+  // 有 tc 之后调用方就不必反推了；不等时它自己就知道少了多少
+  const e = withMeta({ tc: 78, qdate: 20260918 }, [mapPoolRow(ZT_ROW, 0)]);
+  assert.equal(e.tc, 78);
+  assert.equal(e.pool.length, 1);
+});
+
+test('withMeta: 上游没给 tc/qdate 时是 null，不抛', () => {
+  const e = withMeta(undefined, []);
+  assert.equal(e.tc, null);
+  assert.equal(e.qdate, null);
+  assert.deepEqual(e.pool, []);
+});
+
+test('withMeta: qdate 透传的是上游那个值 —— 别把它当请求日', () => {
+  // 实测传 date=20260904，qdate 仍回 20260918（最新交易日）。这条钉住"透传"语义：
+  // 万一有人想在这里"顺手改成请求日"，测试会红。
+  const e = withMeta({ tc: 39, qdate: 20260918 }, []);
+  assert.equal(e.qdate, 20260918);
 });

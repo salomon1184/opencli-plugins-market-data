@@ -74,6 +74,25 @@ opencli eastmoney pool --type zt --date 2026-09-18 -f json
 
 ⚠️ 告警走 **stderr**，stdout 仍是干净 JSON。若调用管道里有 `2>&1`，那行告警会混进 JSON。
 
+### `--with-meta`：要「涨停家数」就别用 `len()` 反推
+
+默认返回**裸数组**（表格/CSV 渲染认数组）。加上 `--with-meta` 则返回信封：
+
+```bash
+opencli eastmoney pool --type zt --date 2026-09-18 --with-meta -f json
+# → {"tc": 78, "qdate": 20260918, "pool": [{…}, …]}
+```
+
+**为什么值得加**：调用方要家数时，拿不到 `tc` 就只能 `len(rows)` 反推 ——
+而那个反推**只在「要么取全、要么报错」下成立**，是个要靠纪律维持的前提
+（一旦有人加了 `--limit`，静默少数立刻回来）。直接给真值，前提就不需要了。
+
+⚠️ **`qdate` 不是请求日** —— 实测传 `date=20260904`，它仍回 `20260918`
+（恒等于「最新交易日」）。**别拿它校验日期**，否则会误杀所有历史查询。
+
+⚠️ **`--with-meta` 下别用 table/csv 输出**：opencli 的 `normalizeRows` 会把对象
+当成"一行"，表格会显示一行 `tc/qdate/pool`。这个开关是给 `-f json` 用的。
+
 | `--type` | 池 | 该池特有的字段 |
 |---|---|---|
 | `zt` | 涨停 | `limitUpFund` 封板资金 / `firstLimitTime` 首封 / `lastLimitTime` 末封 / `breakCount` 炸板次数 / `consecutive` 连板数 |
