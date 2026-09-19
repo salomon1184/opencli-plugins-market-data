@@ -23,16 +23,49 @@
 //     **不叫 `amountWan`** —— 曾用名会让人在港股上少算四个数量级。
 //   共 88 个字段。**只映射核对过的那几个** —— 没核对的宁可不出，免得给个看着像的错数。
 //
+// ⚠️⚠️ **`f[46]` 之后，字段含义随市场变**（2026-09-19 实测，同一批请求对出来的）：
+//
+//     | 位置 | A股 sh512480 | 港股 hk00700 | 美股 usAAPL |
+//     |------|--------------|--------------|-------------|
+//     | [7]  | 外盘 8507165 | 0（无）      | 0（无）     |
+//     | [8]  | 内盘 6488173 | 0（无）      | 0（无）     |
+//     | [46] | 市净率 0.00  | **英文名** TENCENT    | **英文名** Apple Inc. |
+//     | [47] | 涨停价 1.101 | 1.27         | 8.72        |
+//     | [48] | 跌停价 0.901 | 52周高 677.70 | 52周高 344.26 |
+//     | [49] | 量比 1.39    | 52周低 411.00 | 52周低 239.32 |
+//     | [51] | 均价 1.033   | -25.88       | 45.62       |
+//
+//   `f[7]+f[8] = f[6]`（8507165+6488173 = 14995338 = 成交量）—— 内外盘这个口径对上了。
+//
+//   所以本适配器把**这些字段一律只在 A股（sh/sz）下填值**，港美股给 `null`。
+//   给美股填一个「涨停价 344.26」正是本仓库最反对的那种静默错数 —— 看着像、实则是英文名；
+//   给港股填「内盘 0」同样是假值（上游就没给，不是真的没人卖）。
+//   （`f[43]振幅` / `f[44]流通市值` / `f[45]总市值` / `f[39]市盈率` 三市场都对得上，
+//     已单独核对过，不受这条限制。）
+//
+// ⚠️ **美股代码形态**：这个端点认**裸代码**（`usAAPL`），认不出 `usAAPL.OQ`。
+//   与 kline 端点正好相反 —— 见 _symbol.js 的文件头。这里用 `toQuoteForm` 统一剥后缀。
+//
 //   opencli tencent quote sh512480
 //   opencli tencent quote "512480,159915,sh000001" -f json
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { resolveSymbol, splitSymbols } from './_symbol.js';
+import { resolveSymbol, splitSymbols, toQuoteForm, isAShare } from './_symbol.js';
 
 const BASE = 'https://qt.gtimg.cn/q=';
 
+/**
+ * 数字转换。**「没有值」一律 null，绝不变成 0。**
+ *
+ * ⚠️ 必须显式拦空串，不能只靠 `Number.isFinite` —— `Number('')` 是 **0**，而 0 是有限的，
+ *    于是会被静默当成真值。这个端点用 `~` 分隔、**没有值的字段就是空的**，所以踩得到：
+ *    实测 `sh512480`（ETF）的 `f[39]`（市盈率）是**空串**，旧写法会输出 `"pe": 0`
+ *    —— 一个 ETF 的「市盈率 0」看着像真数，其实是上游没给。
+ */
 const num = (v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
@@ -54,7 +87,10 @@ cli({
     'symbol', 'name', 'price', 'prevClose', 'open',
     'change', 'changePercent', 'high', 'low',
     'volume', 'amount', 'turnoverRate', 'amplitude', 'pe',
-    'floatCapYi', 'totalCapYi', 'time',
+    'floatCapYi', 'totalCapYi',
+    'outerVol', 'innerVol', 'volRatio', 'avgPrice',
+    'pb', 'limitUp', 'limitDown',
+    'time',
   ],
   func: async (args) => {
     const inputs = splitSymbols(args.symbols ?? args.symbol);
@@ -63,7 +99,8 @@ cli({
     }
     let symbols;
     try {
-      symbols = inputs.map((s) => resolveSymbol(s, { market: args.market }));
+      // toQuoteForm：本端点要美股**裸代码**，把用户在 kline 那边习惯写的 `.OQ` 后缀剥掉。
+      symbols = inputs.map((s) => toQuoteForm(resolveSymbol(s, { market: args.market })));
     } catch (e) {
       throw new CliError('INVALID_ARGUMENT', e.message);
     }
@@ -86,6 +123,10 @@ cli({
       const f = m[2].split('~');
       if (f.length < 35 || !f[1]) continue;      // 空标的（代码不存在）会被跳过
 
+      // f[7]/f[8] 与 f[46] 之后只在 A股下有意义（见文件头布局表）——
+      // 港美股给 null，不给上游那个并没有含义的 0。
+      const aShare = isAShare(sym);
+
       out.push({
         symbol: sym,
         name: f[1],
@@ -103,6 +144,13 @@ cli({
         amplitude: num(f[43]),
         floatCapYi: num(f[44]),
         totalCapYi: num(f[45]),
+        outerVol: aShare ? num(f[7]) : null,
+        innerVol: aShare ? num(f[8]) : null,
+        volRatio: aShare ? num(f[49]) : null,
+        avgPrice: aShare ? num(f[51]) : null,
+        pb: aShare ? num(f[46]) : null,
+        limitUp: aShare ? num(f[47]) : null,
+        limitDown: aShare ? num(f[48]) : null,
         time: f[30] || '',
       });
     }
