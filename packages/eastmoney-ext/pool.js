@@ -146,9 +146,9 @@ cli({
     // opt-in：把上游的**聚合字段**一并交出去（默认仍返回裸数组，表格渲染靠它）。
     // 有了 `tc`，调用方就不必用 `len(rows)` 反推家数 —— 那个反推只在
     // 「要么取全、要么报错」下成立，是个需要靠纪律维持的前提；直接给真值就没有前提了。
-    // ⚠️ 两个键都试：框架把 kwargs 按 `arg.name`（带横线）放，但中间会过一层
-    //    `prepareCommandArgs`，不好假定它一定不改名 —— 取到就算。
-    const meta = args['with-meta'] ?? args.withMeta;
-    return meta ? withMeta(data, rows) : rows;
+    // ⚠️ 键就是带横线的 `with-meta`，**不必再试 camelCase**：框架在
+    //    `commanderAdapter.js` 里写的是 `rawKwargs[arg.name]`（原样），中间那层
+    //    `prepareCommandArgs` 只是 `{...kwargs}` 拷贝，不改名。实测确认过。
+    return args['with-meta'] ? withMeta(data, rows) : rows;
   },
 });

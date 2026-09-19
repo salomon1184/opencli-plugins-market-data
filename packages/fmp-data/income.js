@@ -50,7 +50,10 @@ cli({
       symbol, period, limit: Math.max(1, Number(args.limit) || 5),
     }, key, symbol);
     if (rows.length === 0) {
-      throw new CliError('NOT_FOUND', `${symbol} 没返回任何期数 —— 符号可能拼错（上游对不存在的符号回 200+空数组）`);
+      // ⚠️ **符号拼错不是走到这里**。实测（2026-09-19）本端点对「拼错的符号」
+      //    和「套餐不含的真实小盘（PLAB）」**都回 402** —— 两者分不开，
+      //    所以别在 NOT_FOUND 里猜"是不是拼错了"（那是 PLAN_RESTRICTED 那条路）。
+      throw new CliError('NO_DATA', `${symbol} 没返回任何期数（符号本身通了，但上游没给数据）`);
     }
     return rows.map(incomeRow);
   },

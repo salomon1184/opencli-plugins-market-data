@@ -50,7 +50,11 @@ cli({
       to: args.to ?? null,
     }, key, symbol);
     if (rows.length === 0) {
-      throw new CliError('NOT_FOUND', `${symbol} 没返回任何日线 —— 符号可能拼错（上游对不存在的符号回 200+空数组）`);
+      // ⚠️ 注意：**符号拼错不是走到这里**。实测（2026-09-19）本端点对「拼错的符号」
+      //    和「套餐不含的真实小盘」**都回 402** —— 所以在 402 与拼错之间**分不开**，
+      //    别在 NOT_FOUND 的文案里猜"是不是拼错了"（那是 PLAN_RESTRICTED 那条路）。
+      //    能走到这里的是：符号没问题、但 `--from/--to` 把区间滤空了。
+      throw new CliError('NO_DATA', `${symbol} 在该区间内没有日线 —— 检查 --from/--to 是否把范围滤空了`);
     }
 
     const mapped = rows.map(eodRow);
