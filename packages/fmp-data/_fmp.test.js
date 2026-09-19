@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 import {
   num, classifyHttp, errorMessageOf, profileRow, incomeRow, eodRow,
-  resolveKey, parseRange,
+  resolveKey, parseRange, configPathFromEnv,
 } from './_fmp.js';
 
 // ---- 实测：/profile?symbol=AAPL（截取用到的字段）----
@@ -115,6 +115,20 @@ test('resolveKey: 什么都有没有 → {key:null}（不静默给空 key）', (
 
 test('resolveKey: 空串参数不算给了 key', () => {
   assert.equal(resolveKey({ apikey: '   ', env: {} }).from, null);
+});
+
+test('configPathFromEnv: 路径**只**来自环境变量 —— 仓库里不内置任何具体位置', () => {
+  // ⚠️ 这条钉的是「公开仓库里不出现私有路径」：内置一个别人机器上不存在的路径，
+  //    对使用者是死路，对自己是把私有目录结构印在公开仓库上。
+  assert.equal(configPathFromEnv({ FMP_CONFIG: '/tmp/keys.json' }), '/tmp/keys.json');
+  assert.equal(configPathFromEnv({ FMP_CONFIG: '  /tmp/keys.json  ' }), '/tmp/keys.json');
+});
+
+test('configPathFromEnv: 没设 / 空串 → null（跳过这一步，不是变成空路径）', () => {
+  assert.equal(configPathFromEnv({}), null);
+  assert.equal(configPathFromEnv({ FMP_CONFIG: '' }), null);
+  assert.equal(configPathFromEnv({ FMP_CONFIG: '   ' }), null);
+  assert.equal(configPathFromEnv(), null);
 });
 
 test('parseRange: 切 "lo-hi"，切不出给 null', () => {

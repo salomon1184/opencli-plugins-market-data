@@ -35,7 +35,7 @@ cli({
     { name: 'from', type: 'string', help: '起始日 YYYY-MM-DD（上游过滤）' },
     { name: 'to',   type: 'string', help: '结束日 YYYY-MM-DD（上游过滤）' },
     { name: 'last', type: 'int', help: '只要最近 N 条（**本地截取**，不是上游参数）' },
-    { name: 'apikey', type: 'string', help: 'FMP key；省略则取 FMP_API_KEY 或 OpenAlice 配置' },
+    { name: 'apikey', type: 'string', help: 'FMP key；省略则取环境变量 FMP_API_KEY（或 FMP_CONFIG 指向的配置文件）' },
   ],
   columns: ['symbol', 'date', 'open', 'high', 'low', 'close', 'volume', 'change', 'changePercent', 'vwap'],
   func: async (args) => {

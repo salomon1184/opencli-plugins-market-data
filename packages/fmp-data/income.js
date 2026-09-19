@@ -29,7 +29,7 @@ cli({
     { name: 'symbol', required: true, positional: true, help: '代码，如 AAPL' },
     { name: 'period', type: 'string', default: 'annual', help: 'annual / quarter' },
     { name: 'limit',  type: 'int',    default: 5,        help: '期数' },
-    { name: 'apikey', type: 'string', help: 'FMP key；省略则取 FMP_API_KEY 或 OpenAlice 配置' },
+    { name: 'apikey', type: 'string', help: 'FMP key；省略则取环境变量 FMP_API_KEY（或 FMP_CONFIG 指向的配置文件）' },
   ],
   columns: [
     'symbol', 'date', 'period', 'revenue', 'costOfRevenue', 'grossProfit',

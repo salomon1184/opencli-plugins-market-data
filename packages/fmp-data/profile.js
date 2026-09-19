@@ -41,7 +41,7 @@ cli({
   args: [
     { name: 'symbols', required: true, positional: true, help: '代码，逗号或空格分隔（如 "AAPL,MSFT"）' },
     { name: 'delay', type: 'int', default: 0, help: '符号之间的间隔秒数（免费档建议 5~7；本命令自己不限速）' },
-    { name: 'apikey', type: 'string', help: 'FMP key；省略则取 FMP_API_KEY 或 OpenAlice 配置' },
+    { name: 'apikey', type: 'string', help: 'FMP key；省略则取环境变量 FMP_API_KEY（或 FMP_CONFIG 指向的配置文件）' },
   ],
   columns: [
     'symbol', 'name', 'price', 'marketCap', 'change', 'changePercentage',

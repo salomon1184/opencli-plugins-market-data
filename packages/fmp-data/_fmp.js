@@ -46,8 +46,8 @@ export function classifyHttp(status, bodyText = '') {
   if (status === 401 || status === 403) {
     return {
       code: 'AUTH_REQUIRED',
-      message: `FMP 拒绝了 key（HTTP ${status}）—— 检查 --apikey / FMP_API_KEY / ` +
-        `~/.openalice/data/config/market-data.json 的 providerKeys.fmp。上游原话：${body}`,
+      message: `FMP 拒绝了 key（HTTP ${status}）—— 检查 --apikey / 环境变量 FMP_API_KEY / ` +
+        `FMP_CONFIG 指向的配置文件的 providerKeys.fmp。上游原话：${body}`,
     };
   }
   if (status === 402) {
@@ -139,10 +139,28 @@ export function eodRow(d = {}) {
 }
 
 /**
- * 把 key 从几个来源里解出来：显式参数 → 环境变量 → OpenAlice 的配置文件。
+ * 可选的 key 配置文件路径 —— **路径由环境变量给，仓库里不写任何具体位置**。
  *
- * `configPath` 是 opencli 之外的约定（OpenAlice 把各家 provider key 收在一处），
- * 所以它是**最后**的兜底，且读不到就如实说读不到 —— 不静默变成一个空 key
+ * 为什么不在代码里内置一个路径：本仓库是公开的。内置某个工作区的配置位置，
+ * 对其他用户来说那个文件根本不存在（等于写死一条死路），而对自己来说是把
+ * 私有目录结构印在了公开仓库上 —— 两头都不划算。
+ *
+ * 需要「把各家 key 收在一个文件里」就自己指：
+ *
+ *     export FMP_CONFIG=~/path/to/market-data.json
+ *
+ * 没设这个变量就返回 null（跳过这一步，继续往下报缺 key）。
+ */
+export function configPathFromEnv(env = {}) {
+  const p = env.FMP_CONFIG;
+  return p && String(p).trim() ? String(p).trim() : null;
+}
+
+/**
+ * 把 key 从几个来源里解出来：显式参数 → 环境变量 → 配置文件。
+ *
+ * `configPath` **由调用方从环境变量取**（见 `configPathFromEnv`）—— 本模块不认识
+ * 任何具体路径。它是**最后**的兜底，且读不到就如实说读不到，不静默变成一个空 key
  * （空 key 打过去会拿到 401，看起来像"key 配错了"，其实是没有 key）。
  */
 export function resolveKey({ apikey = null, env = {}, configPath = null, readFile = null } = {}) {

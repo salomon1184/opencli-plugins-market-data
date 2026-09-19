@@ -13,27 +13,31 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { CliError } from '@jackwener/opencli/errors';
-import { BASE, classifyHttp, errorMessageOf, resolveKey } from './_fmp.js';
+import { BASE, classifyHttp, errorMessageOf, resolveKey, configPathFromEnv } from './_fmp.js';
 
-/** OpenAlice 把各家 provider key 收在这里；opencli 之外的约定，所以只作兜底。 */
-export const CONFIG_PATH = '~/.openalice/data/config/market-data.json';
-
+/** `~` 展开 —— `FMP_CONFIG` 是用户自己给的路径，很可能写成 `~/…`。 */
 const expand = (p) => (p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p);
 
-/** 解 key：`--apikey` → `FMP_API_KEY` → OpenAlice 配置文件。都取不到就**报错，不静默返空**。 */
+/**
+ * 解 key：`--apikey` → `FMP_API_KEY` → `FMP_CONFIG` 指向的文件。
+ * 都取不到就**报错，不静默返空**。
+ *
+ * ⚠️ 配置文件那条路**没有内置路径** —— 路径来自 `FMP_CONFIG` 环境变量。
+ *    这是公开仓库，写死某个工作区的配置位置既对其他用户无用，也越界。
+ */
 export function requireKey(apikey) {
-  const cfgPath = expand(CONFIG_PATH);
+  const envPath = configPathFromEnv(process.env);
   const { key, from } = resolveKey({
     apikey,
     env: process.env,
-    configPath: cfgPath,
+    configPath: envPath ? expand(envPath) : null,
     readFile: (p) => fs.readFileSync(p, 'utf8'),
   });
   if (!key) {
     throw new CliError(
       'AUTH_REQUIRED',
       '没找到 FMP API key —— 三条路都试过了：--apikey / 环境变量 FMP_API_KEY / ' +
-        `${CONFIG_PATH} 的 providerKeys.fmp。` +
+        'FMP_CONFIG 指向的配置文件的 providerKeys.fmp。' +
         '（空 key 打过去只会拿到 401，看起来像"key 配错了"，其实是根本没有 key。）',
     );
   }

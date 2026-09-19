@@ -72,7 +72,17 @@ opencli fmp eod AAPL --last 250 -f json
 
 1. `--apikey`
 2. 环境变量 `FMP_API_KEY`（或 `FMP_KEY`）
-3. `~/.openalice/data/config/market-data.json` 的 `providerKeys.fmp`（OpenAlice 的约定，仅作兜底）
+3. `FMP_CONFIG` 指向的 JSON 文件里的 `providerKeys.fmp`
+
+第 3 条是给「把各家 key 收在一个文件里」的工作区留的扩展点。
+⚠️ **路径由你自己用环境变量给，仓库里不内置任何具体位置** —— 这是公开仓库：
+写死某个工作区的配置路径，对别人是一条**不存在的死路**，对自己是把私有目录结构
+印在公开仓库上，两头都不划算。
+
+```bash
+export FMP_CONFIG=~/path/to/market-data.json
+# 文件形如：{"providerKeys": {"fmp": "<your-key>"}}
+```
 
 ## 测试
 
