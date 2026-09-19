@@ -7,7 +7,7 @@
 | 子插件 | 站点 | 覆盖 | 性质 |
 |---|---|---|---|
 | [`tencent-data`](packages/tencent-data) | `tencent` | **A股 · 港股 · 美股** | 新增站点 |
-| [`eastmoney-ext`](packages/eastmoney-ext) | `eastmoney` | A股 | ⚠️ **覆盖内置站点** |
+| [`eastmoney-ext`](packages/eastmoney-ext) | `eastmoney` | A股 · 港股（F10） | ⚠️ **覆盖内置站点** |
 | [`fmp-data`](packages/fmp-data) | `fmp` | 美股（基本面/日线） | 新增站点 · **需自己的 API key** |
 
 ## 安装
@@ -42,6 +42,8 @@ opencli tencent minute sh512480 -f json                           # 当日分时
 opencli eastmoney sectors --type industry --sort money-flow --range 5d --limit 12 -f json
 opencli eastmoney sector-quote BK1158 -f json
 opencli eastmoney pool --type zt --date 2026-09-18 -f json    # 涨停池（另有 dt/zb/qs/cx）
+opencli eastmoney pool --type zt --date 2026-09-18 --with-meta -f json   # 带 tc/qdate 的信封
+opencli eastmoney hk-f10 --date 2025-12-31 -f json            # 港股 F10 财务指标（全市场）
 ```
 
 ### `fmp-data`
@@ -119,7 +121,8 @@ opencli fmp eod AAPL --last 250 -f json                   # 日线（默认全�
 
 - **症状**：`fetch failed` / `cause: other side closed`；用 curl 直接打是 **0 字节**
   （TLS 握手能成功，服务端不返回就关闭连接）。**从单次失败看，和上游宕机一模一样。**
-- **各 host 独立计量**：`push2` 被封时 `push2delay` 可能仍然通。所以看到「换个 host
+- **各 host 独立计量**（`push2` / `push2delay` / `push2his` / `push2ex` / `datacenter`）：
+  `push2` 被封时 `push2delay` 可能仍然通。所以看到「换个 host
   就好了」**不要**当成找到了备用源 —— 那只是一个**还没被打掉**的 host，照同样频率
   打下去一样会被封。把偶发故障固化成设计缺陷，比不兜底更糟。
 - **触发门槛很低**：2026-09-19 实测，以约 1 秒间隔连续探测十几个端点，就把
@@ -146,7 +149,8 @@ opencli fmp eod AAPL --last 250 -f json                   # 日线（默认全�
 纯函数有单测，**不联网**：
 
 ```bash
-node --test packages/tencent-data/_symbol.test.js packages/eastmoney-ext/_pool.test.js
+node --test packages/tencent-data/_symbol.test.js packages/eastmoney-ext/_pool.test.js \
+  packages/eastmoney-ext/_datacenter.test.js packages/fmp-data/_fmp.test.js
 # 或者直接（自动发现 *.test.js）
 node --test
 ```

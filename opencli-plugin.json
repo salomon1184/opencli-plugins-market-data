@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "opencli": ">=1.8.7",
-  "description": "行情数据适配器：腾讯（A股/港股/美股）+ 东方财富板块扩展 + Financial Modeling Prep（美股）",
+  "description": "行情数据适配器：腾讯（A股/港股/美股）+ 东方财富（板块资金/涨停池/港股 F10）+ Financial Modeling Prep（美股）",
   "plugins": {
     "tencent-data": {
       "path": "packages/tencent-data",
@@ -11,7 +11,7 @@
     "eastmoney-ext": {
       "path": "packages/eastmoney-ext",
       "version": "0.1.0",
-      "description": "东方财富板块扩展：板块级 5/10 日主力净额（--range）+ 按 BK 代码直取快照"
+      "description": "东方财富：板块级 5/10 日主力净额（--range）+ 按 BK 代码直取快照 + 涨停/跌停/炸板/强势/次新五池（pool）+ 港股 F10 财务指标（hk-f10）"
     },
     "fmp-data": {
       "path": "packages/fmp-data",

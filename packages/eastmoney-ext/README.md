@@ -26,18 +26,20 @@ opencli 的适配器加载顺序是 **内置 → 用户级（`~/.opencli/clis/`�
 
 ## 命令
 
-三个命令，性质分两类：
+四个命令，性质分两类：
 
 | 命令 | 性质 | 补的是什么 |
 |---|---|---|
 | `sectors --range today\|5d\|10d` | **覆盖** | 内置 `sectors` **没有 `--range`**，只有今日主力净额；这里补上板块级 5/10 日累计 |
 | `sector-quote <BK####>` | **覆盖** | 内置 `quote` 的符号解析（`_secid.js`）只认个股/指数形态，**板块代码 `BK1158` 走不通**（实测 `BK1158` 与 `90.BK1158` 均报 `INVALID_ARGUMENT`） |
 | `pool --type zt\|dt\|zb\|qs\|cx` | **新增** | 涨停/跌停/炸板/强势/次新五个股池。内置**没有**这一类（最接近的 `hot-rank` 是热股榜，还要 cookie） |
+| `hk-f10 --date <报告期>` | **新增** | 港股 F10 主要财务指标（全市场按报告期）。内置**没有**这一类；走**第五个 host** `datacenter.eastmoney.com`（见下「各 host 独立计量」） |
 
 ```bash
 opencli eastmoney sectors --type industry --sort money-flow --range 5d --limit 12 -f json
 opencli eastmoney sector-quote "BK1158,BK0459" -f json
 opencli eastmoney pool --type zt --date 2026-09-18 -f json
+opencli eastmoney hk-f10 --date 2025-12-31 -f json
 ```
 
 `sector-quote` 一次请求返回：`changePercent` / `mainNet` / `mainNet5d` / `mainNet10d` /
@@ -124,6 +126,51 @@ opencli eastmoney pool --type zt --date 2026-09-18 --with-meta -f json
 （看着像「没数据」，实则是 token 不对）。适配器里已经用对了，这里只是记一笔，
 免得你照着别处的代码抄。
 
+## `hk-f10`：港股 F10 主要财务指标
+
+`hk-f10` 是**新增命令**，走**第五个 host** `datacenter.eastmoney.com`
+（与 `push2` / `push2delay` / `push2his` / `push2ex` **各自独立计量**）。
+
+```bash
+opencli eastmoney hk-f10 --date 2025-12-31 -f json                  # 年报期
+opencli eastmoney hk-f10 --date 2026-06-30 --page-delay 3 -f json   # 中报期
+```
+
+| 参数 | 说明 |
+|---|---|
+| `--date <YYYY-MM-DD>` | **必传**。报告期 `REPORT_DATE`（2025-12-31 年报 / 2026-06-30 中报） |
+| `--page-size` | 每页条数，默认 500（实测被接受的上限） |
+| `--page-delay` | 翻页间隔秒数，**默认 0**（本命令不替你限速，见下） |
+| `--max-pages` | 页数安全阀，默认 50 |
+| `--columns` | 覆盖默认列（逗号分隔） |
+| `--with-meta` | 返回 `{count, pages, rows}` 而不是裸数组 |
+
+⚠️ 默认列是**窄列**（15 个：SECURITY_CODE / SECURITY_NAME_ABBR / REPORT_DATE / REPORT_TYPE /
+PE_TTM / PB_TTM / TOTAL_MARKET_CAP / ROE_YEARLY / ROE_AVG / ROE_AVG_SQ /
+OPERATE_INCOME_YOY / OPERATE_INCOME / BASIC_EPS / EPS_TTM / CURRENCY）。
+**要别的列就显式传 `--columns`** —— 输出是上游行**原样透传**（不做数值转换），
+所以只要上游给了，你传什么列就拿得到什么列。
+
+### ⚠️ 本命令的要点：**不猜「到底了没有」**
+
+上游在**快速连打时会返回空**，而**一次空答复与「翻到最后一页」形状完全一样**。
+手写分页脚本在这里几乎必然**静默截断**（先前的实现就是 `if not rows: break`）。
+
+本命令拿上游给的 **`result.count`** 对账：取回的条数与它不等就抛 **`TRUNCATED`**，
+**绝不返回短表**。所以 `--page-delay` 不加也保证**不会悄悄少给** —— 只会**大声失败**。
+（同一个教训在 `pool` 上是 `tc`。）
+
+⚠️ `success:false` / 缺 `result` 段**单独认** —— HTTP 200 也会带这层，只看状态码会漏。
+⚠️ `count` 缺失时给 `null` 而**不拿 0 冒充**（0 会被读成「上游说一条都没有」，
+而真相是「上游没说有多少」——两者处置相反）。
+
+### 限速
+
+本命令**不替你限速**：默认 `--page-delay 0`，一次调用会连着打完所有页
+（全市场约 5 页）。这与根 README「两次请求至少间隔 1 秒」的纪律**相反**，
+是**刻意**的 —— 代价自担，且被限流时**会报错而不是少给**。
+要放慢就显式传 `--page-delay 3`（先前那份手写脚本的实测值）。
+
 ## ⚠️ `clist` 端点不稳 —— 很可能就是限流封禁
 
 `sectors` 走 `push2.eastmoney.com/api/qt/clist/get`，该端点历史上多次整条不可达
@@ -148,6 +195,6 @@ host，照同样频率打下去一样会被封。
 本适配器**不重试、不限速**。东方财富按**源 IP** 限流，突发请求会被临时封禁 ——
 **紧循环重试比不重试更糟**。请用带退避的包装器调用。
 
-⚠️ **各 host 独立计量**（`push2` / `push2delay` / `push2his` / `push2ex`）：
+⚠️ **各 host 独立计量**（`push2` / `push2delay` / `push2his` / `push2ex` / **`datacenter`**）：
 一个被封时另一个可能仍然通。那不是「备用源」，只是还没被打掉的那个。
 详见根 README 的「限速与封禁」。

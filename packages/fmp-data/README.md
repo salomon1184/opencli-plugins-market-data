@@ -5,8 +5,12 @@
 属于 [opencli-plugins-market-data](../../) monorepo。单独安装：
 
 ```bash
-opencli plugin install git@github.com:salomon1184/opencli-plugins-market-data.git
+opencli plugin install github:salomon1184/opencli-plugins-market-data/fmp-data
 ```
+
+（`github:` 简写会把本机指向 https；若你那台机器连不上 github.com，改用
+`opencli plugin install git@github.com:salomon1184/opencli-plugins-market-data.git`
+装整个 monorepo。）
 
 **为什么有这个包**：FMP 在真实工程里有**至少四份各写各的实现**（三个 shell + 一个 python），
 其中两份在**同一个目录里并行维护**（`us_snap_equiv.py` 是 `us_free_daily.sh` 的逐行重写，
