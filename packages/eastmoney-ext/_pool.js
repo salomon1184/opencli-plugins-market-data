@@ -108,3 +108,27 @@ export function mapPoolRow(it, index) {
     volumeRatio: num(it.lb),        // 量比，仅 qs 有
   };
 }
+
+/**
+ * 截断判定 —— 抽成纯函数是为了能**不联网地测**（同本文件其它函数）。
+ *
+ * 上游 `data.tc` 是**真实家数**，`pagesize` 只是分页大小。两者不等 = 我们只拿到了
+ * 池子的一部分 —— 拿它去算「涨停家数 / 连板梯队」会**静默少数**，而少掉的数看不见，
+ * 比报错糟得多。所以截断必须**有声**，且两种情形的处置相反：
+ *
+ *   · 调用方**显式**给了 `--limit` → 有意取前 N 条 → `warn`（只提醒，不改结果）
+ *   · 调用方**省略**了 `--limit`   → 默认本应取全   → `error`（宁可不给，不许少给）
+ *
+ * @returns {null | {level: 'warn'|'error', detail: string}} 未截断时 null
+ */
+export function truncationCheck(tc, returned, { explicitLimit = false, limit = null } = {}) {
+  // tc 取不到（上游没给 / 不是数字）时不判定 —— 不拿「不知道」当「没截断」，
+  // 但也不因此报错（那会把一个字段缺失升级成取数失败）。
+  if (tc === null || tc === undefined || !Number.isFinite(tc)) return null;
+  if (tc <= returned) return null;
+
+  const detail = `上游共 ${tc} 条，只取回 ${returned} 条`;
+  return explicitLimit
+    ? { level: 'warn',  detail: `${detail}（--limit ${limit} 系有意截断）` }
+    : { level: 'error', detail: `${detail} —— 默认本应取全，请提高 --limit` };
+}

@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  POOLS, PRICE_SENTINEL, num, price, hhmmss, toCompactDate, mapPoolRow,
+  POOLS, PRICE_SENTINEL, num, price, hhmmss, toCompactDate, mapPoolRow, truncationCheck,
 } from './_pool.js';
 
 // ---- 真实记录（涨停池 2026-09-18，百通能源 001376）----
@@ -147,4 +147,44 @@ test('mapPoolRow: 缺 industry 时给 null，不给 undefined', () => {
   assert.equal(r.industry, null);
   assert.equal(r.price, 1);
   assert.equal(r.changePercent, null);
+});
+
+// ---- truncationCheck：截断必须有声，且两种情形处置相反 ----
+//
+// 背景（2026-09-19）：上游 `data.tc` 是真实家数、`pagesize` 只是分页大小。
+// 旧版默认 limit=50，而 09-18 实际有 78 家 —— 拿返回条数当家数会**静默少数**。
+// 78 就是当天涨停池的真实 tc，下面直接拿它当 fixture。
+
+test('truncationCheck: 未截断（tc 78，取回 78）→ null，什么都不该报', () => {
+  assert.equal(truncationCheck(78, 78, { explicitLimit: false, limit: 500 }), null);
+});
+
+test('truncationCheck: 取回的比 tc 还多也不报（不拿它当倒挂异常）', () => {
+  assert.equal(truncationCheck(78, 80, { explicitLimit: false, limit: 500 }), null);
+});
+
+test('truncationCheck: 省略 --limit 却被截断 → error（宁可不给，不许少给）', () => {
+  const r = truncationCheck(78, 50, { explicitLimit: false, limit: 500 });
+  assert.equal(r.level, 'error');
+  assert.match(r.detail, /共 78 条，只取回 50 条/);
+  assert.match(r.detail, /提高 --limit/);
+});
+
+test('truncationCheck: 显式 --limit 50 → warn（有意截断，只提醒不改结果）', () => {
+  const r = truncationCheck(78, 50, { explicitLimit: true, limit: 50 });
+  assert.equal(r.level, 'warn');
+  assert.match(r.detail, /有意截断/);
+  // ⚠️ 关键：显式截断**不能**升级成 error —— 那是调用方自己要的前 50 条。
+  assert.notEqual(r.level, 'error');
+});
+
+test('truncationCheck: tc 取不到时不判定 —— 别把字段缺失升级成取数失败', () => {
+  for (const bad of [null, undefined, NaN, '78']) {
+    assert.equal(truncationCheck(bad, 50, { explicitLimit: false, limit: 500 }), null,
+      `tc=${String(bad)} 不该判定`);
+  }
+});
+
+test('truncationCheck: 空池（tc 0，取回 0）是合法结果，不是截断', () => {
+  assert.equal(truncationCheck(0, 0, { explicitLimit: false, limit: 500 }), null);
 });

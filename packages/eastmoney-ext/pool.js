@@ -23,15 +23,25 @@
 //   直接 `rc:205, data:null` —— 看着像「没数据」，实则是 token 不对，很能骗人。
 //
 //   opencli eastmoney pool --type zt --date 2026-09-18 -f json
-//   opencli eastmoney pool --type zb --date 2026-09-04 --limit 50
+//   opencli eastmoney pool --type zb --date 2026-09-04 --limit 50   # 有意取前 50（会告警）
 //   opencli eastmoney pool --type dt --date 2026-09-18   # 空池返回 []，不是错误
+//
+// ⚠️ **`--limit` 省略 = 取全部**（不是"默认 50"）。上游 `data.tc` 才是真实家数，
+//   `pagesize` 只是分页大小 —— 两者不等时，拿返回条数当家数会**静默少数**
+//   （09-18 实际 78 家，旧的默认 50 会安安静静报成 50）。所以：
+//     · 省略 `--limit` → 开 500 取全；若仍被截断（tc > 返回条数）→ **报错**，不静默少给。
+//     · 显式给了 `--limit` → 视为有意截断，**只告警不改结果**（stderr）。
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { POOLS, mapPoolRow, toCompactDate } from './_pool.js';
+import { POOLS, mapPoolRow, toCompactDate, num, truncationCheck } from './_pool.js';
 
 const BASE = 'https://push2ex.eastmoney.com/getTopic';
 const UT = '7eea3edcaed734bea9cbfc24409ed989';   // ⚠️ 见文件头：这个 host 专用的 token
+
+// 省略 `--limit` 时开的页大小。实测 pagesize=500 上游正常返回；真有一天超过它，
+// 下面那条截断检查会**报错**而不是少给 —— 见 func 末尾。
+const DEFAULT_ALL = 500;
 
 cli({
   site: 'eastmoney',
@@ -46,7 +56,9 @@ cli({
     { name: 'type',  type: 'string', default: 'zt', help: '池：zt 涨停 / dt 跌停 / zb 炸板 / qs 强势 / cx 次新' },
     // 必传：不传上游直接 rc:102，**不会**回退到当天（实测），所以这里也不给它默认值。
     { name: 'date',  type: 'string', required: true, help: '交易日 YYYY-MM-DD（必传 —— 不传上游报 rc:102，不会默认当天）' },
-    { name: 'limit', type: 'int',    default: 50, help: '返回数量' },
+    // ⚠️ **刻意不给默认值**：省略 = 取全部，显式给 = 有意截断。
+    //    给了默认值就分不清这两者 —— 而它们的处置相反（一个该报错，一个只该提醒）。
+    { name: 'limit', type: 'int',    help: '返回数量（省略 = 取全部；显式给 = 有意截断并告警）' },
   ],
   columns: [
     'rank', 'code', 'name', 'price', 'changePercent',
@@ -74,7 +86,11 @@ cli({
       );
     }
 
-    const limit = Math.max(1, Number(args.limit) || 50);
+    // ⚠️ 默认**不截断**。上游 `data.tc` 是真实家数，`pagesize` 只是分页大小 ——
+    //    两者不等时，拿「返回条数」当家数就会**静默少数**：09-18 实际 78 家涨停，
+    //    旧的默认 50 会安安静静报成 50。
+    const explicitLimit = args.limit !== undefined && args.limit !== null && args.limit !== '';
+    const limit = explicitLimit ? Math.max(1, Number(args.limit) || 1) : DEFAULT_ALL;
 
     const url = new URL(BASE + pool.path + 'Pool');
     url.searchParams.set('ut', UT);
@@ -107,6 +123,15 @@ cli({
     // ⚠️ **空池不是错误**：`tc:0, pool:[]` 是合法结果（那天就是没有跌停股）。
     //    这里返回空数组，让调用方能区分「当天没有」和「请求失败」——
     //    与 README「真空数据与请求失败分开处置」是同一个立场。
-    return data.pool.map(mapPoolRow);
+    const rows = data.pool.map(mapPoolRow);
+
+    // ⚠️ 截断必须**有声**（判定逻辑与其理由见 _pool.js 的 truncationCheck）。
+    const truncated = truncationCheck(num(data.tc), rows.length, { explicitLimit, limit });
+    if (truncated) {
+      const where = `${pool.label}池 date=${date}：${truncated.detail}`;
+      if (truncated.level === 'error') throw new CliError('NO_DATA', where);
+      console.error(`[pool] ⚠️ ${where}`);
+    }
+    return rows;
   },
 });
