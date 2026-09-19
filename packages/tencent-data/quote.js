@@ -52,23 +52,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { resolveSymbol, splitSymbols, toQuoteForm, isAShare } from './_symbol.js';
+// `num` 搬进了 _quote.js —— 私有函数测不到，而它注释里钉的正是踩过的坑。
+import { num } from './_quote.js';
 
 const BASE = 'https://qt.gtimg.cn/q=';
-
-/**
- * 数字转换。**「没有值」一律 null，绝不变成 0。**
- *
- * ⚠️ 必须显式拦空串，不能只靠 `Number.isFinite` —— `Number('')` 是 **0**，而 0 是有限的，
- *    于是会被静默当成真值。这个端点用 `~` 分隔、**没有值的字段就是空的**，所以踩得到：
- *    实测 `sh512480`（ETF）的 `f[39]`（市盈率）是**空串**，旧写法会输出 `"pe": 0`
- *    —— 一个 ETF 的「市盈率 0」看着像真数，其实是上游没给。
- */
-const num = (v) => {
-  if (v === null || v === undefined) return null;
-  if (typeof v === 'string' && v.trim() === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
 
 cli({
   site: 'tencent',
